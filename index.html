@@ -199,7 +199,7 @@ function isB(p){return p&&p===p.toLowerCase();}
 function sameCol(a,b){return(isW(a)&&isW(b))||(isB(a)&&isB(b));}
 function getFen(){return history[history.length-1];}
 
-function getMoves(board,r,c,turn,ep){
+function getMoves(board,r,c,turn,ep,castling){
   const piece=board[r][c];if(!piece)return[];
   if(turn==='w'&&!isW(piece))return[];if(turn==='b'&&!isB(piece))return[];
   const moves=[],add=(tr,tc)=>{if(tr<0||tr>7||tc<0||tc>7)return false;const t=board[tr][tc];if(sameCol(piece,t))return false;moves.push([tr,tc]);return!t;};
@@ -212,6 +212,24 @@ function getMoves(board,r,c,turn,ep){
   }
   const D={N:[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]],K:[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]],B:[[-1,-1],[-1,1],[1,-1],[1,1]],R:[[-1,0],[1,0],[0,-1],[0,1]],Q:[[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]};
   for(const[dr,dc]of D[pt]||[]){if(['B','R','Q'].includes(pt)){let tr=r+dr,tc=c+dc;while(add(tr,tc)){tr+=dr;tc+=dc;}}else add(r+dr,c+dc);}
+  // Rokade
+  if(pt==='K'&&castling){
+    if(isW(piece)){
+      // Koningszijde wit
+      if(castling.includes('K')&&!board[7][5]&&!board[7][6]&&board[7][7]==='R')
+        moves.push([7,6]);
+      // Damezijde wit
+      if(castling.includes('Q')&&!board[7][3]&&!board[7][2]&&!board[7][1]&&board[7][0]==='R')
+        moves.push([7,2]);
+    } else {
+      // Koningszijde zwart
+      if(castling.includes('k')&&!board[0][5]&&!board[0][6]&&board[0][7]==='r')
+        moves.push([0,6]);
+      // Damezijde zwart
+      if(castling.includes('q')&&!board[0][3]&&!board[0][2]&&!board[0][1]&&board[0][0]==='r')
+        moves.push([0,2]);
+    }
+  }
   return moves;
 }
 
@@ -298,17 +316,17 @@ function render(){
 }
 
 function clickSq(r,c,sq){
-  const{board,turn,ep}=parseFen(getFen());const piece=board[r][c];
+  const{board,turn,ep,castling}=parseFen(getFen());const piece=board[r][c];
   if(selected){
     if(legalMoves.some(([lr,lc])=>lr===r&&lc===c)){
       const sp=board[sqToRc(selected).r][sqToRc(selected).c];
       if(sp?.toUpperCase()==='P'&&(r===0||r===7)){promoData={from:selected,to:sq};document.getElementById('promo-modal').style.display='flex';return;}
       doMove(selected,sq);return;
     }
-    if(piece&&((turn==='w'&&isW(piece))||(turn==='b'&&isB(piece)))){selected=sq;legalMoves=getMoves(board,r,c,turn,ep);render();return;}
+    if(piece&&((turn==='w'&&isW(piece))||(turn==='b'&&isB(piece)))){selected=sq;legalMoves=getMoves(board,r,c,turn,ep,castling);render();return;}
     selected=null;legalMoves=[];render();return;
   }
-  if(piece&&((turn==='w'&&isW(piece))||(turn==='b'&&isB(piece)))){selected=sq;legalMoves=getMoves(board,r,c,turn,ep);setStatus(UNICODE[piece]+' geselecteerd');render();}
+  if(piece&&((turn==='w'&&isW(piece))||(turn==='b'&&isB(piece)))){selected=sq;legalMoves=getMoves(board,r,c,turn,ep,castling);setStatus(sq+' geselecteerd');render();}
 }
 
 function doPromo(p){document.getElementById('promo-modal').style.display='none';if(promoData)doMove(promoData.from,promoData.to,p);promoData=null;}
