@@ -35,8 +35,8 @@ h1 { text-align:center; font-size:1.2rem; letter-spacing:4px; color:#f0c040; tex
 .sq.legal-dot::after { content:''; position:absolute; width:13px; height:13px; border-radius:50%; background:rgba(0,0,0,0.22); }
 .sq.legal-capture::after { content:''; position:absolute; inset:0; border:3px solid rgba(0,0,0,0.25); border-radius:2px; }
 .piece { font-size:32px; line-height:1; position:relative; z-index:2; pointer-events:none; display:block; }
-.piece-w { color:#ffffff; -webkit-text-stroke:1.5px #333; text-shadow:0 1px 4px rgba(0,0,0,0.9); }
-.piece-b { color:#000000; -webkit-text-stroke:1.5px #000; text-shadow:0 0 3px rgba(255,255,255,0.5); }
+.piece-w { color:#ffffff; -webkit-text-stroke:2px #222; text-shadow:0 2px 4px rgba(0,0,0,1), 0 0 2px rgba(0,0,0,1); }
+.piece-b { color:#000000; -webkit-text-stroke:2px #ffffff; text-shadow:0 1px 3px rgba(255,255,255,0.4); }
 .coord-rank { position:absolute; top:2px; left:3px; font-size:9px; font-weight:bold; font-family:monospace; z-index:3; pointer-events:none; }
 .coord-file { position:absolute; bottom:2px; right:3px; font-size:9px; font-weight:bold; font-family:monospace; z-index:3; pointer-events:none; }
 .controls { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px; }
@@ -141,7 +141,7 @@ h1 { text-align:center; font-size:1.2rem; letter-spacing:4px; color:#f0c040; tex
 
 <script>
 const UNICODE={K:"♔",Q:"♕",R:"♖",B:"♗",N:"♘",P:"♙",k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
-const GAME_FEN="r3kb1r/1pp2ppp/p1n5/3Np3/2B1P3/5N2/PP3PPP/2KR3R b kq - 0 14";
+const GAME_FEN="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 let history=[GAME_FEN],moveHistory=[],selected=null,legalMoves=[];
 let flipped=false,showHint=true,lastMove=null,promoData=null;
 let bestFrom=null,bestTo=null,sf=null,sfReady=false,sfBusy=false,sfCallback=null;
