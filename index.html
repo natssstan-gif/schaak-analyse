@@ -352,10 +352,11 @@ function analyse(fen){
     const turn=fen.split(' ')[1];
     let html='';
     if(mv&&mv.length>=4){
-      const f=mv.slice(0,2).toUpperCase(),t=mv.slice(2,4).toUpperCase();
-      html+=`<div class="bestmove-box"><div style="font-size:0.72rem;color:#88cc88;font-weight:bold;text-transform:uppercase;margin-bottom:3px;">Beste zet</div><div class="bestmove-val">${f} → ${t}</div><div class="eval-txt">Evaluatie: ${evTxt}</div></div>`;
+      const f=mv.slice(0,2),t=mv.slice(2,4);
+      const fDisp=f.toUpperCase(),tDisp=t.toUpperCase();
+      html+=`<div class="bestmove-box"><div style="font-size:0.72rem;color:#88cc88;font-weight:bold;text-transform:uppercase;margin-bottom:3px;">Beste zet</div><div class="bestmove-val" style="font-family:monospace;font-size:1.4rem;letter-spacing:2px;">${fDisp} → ${tDisp}</div><div class="eval-txt">Evaluatie: ${evTxt}</div></div>`;
       const ev=parseFloat(evTxt);
-      let u=`De beste zet is <strong>${f} → ${t}</strong>. `;
+      let u=`De beste zet is <strong style="font-family:monospace">${fDisp} → ${tDisp}</strong>. `;
       if(evTxt.startsWith('M'))u+='Dit leidt tot mat!';
       else if(!isNaN(ev)&&Math.abs(ev)>5)u+=turn==='b'?'Jij staat enorm voor!':'Wit staat ver voor.';
       else if(!isNaN(ev)&&Math.abs(ev)>2)u+=turn==='b'?'Jij hebt een groot voordeel.':'Wit heeft een groot voordeel.';
