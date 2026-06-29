@@ -34,9 +34,7 @@ h1 { text-align:center; font-size:1.2rem; letter-spacing:4px; color:#f0c040; tex
 .sq.bestto   { background:#44aa22 !important; }
 .sq.legal-dot::after { content:''; position:absolute; width:13px; height:13px; border-radius:50%; background:rgba(0,0,0,0.22); }
 .sq.legal-capture::after { content:''; position:absolute; inset:0; border:3px solid rgba(0,0,0,0.25); border-radius:2px; }
-.piece { font-size:32px; line-height:1; position:relative; z-index:2; pointer-events:none; display:block; }
-.piece-w { color:#ffffff; -webkit-text-stroke:2px #222; text-shadow:0 2px 4px rgba(0,0,0,1), 0 0 2px rgba(0,0,0,1); }
-.piece-b { color:#000000; -webkit-text-stroke:2px #ffffff; text-shadow:0 1px 3px rgba(255,255,255,0.4); }
+.piece { width:38px; height:38px; background-size:contain; background-repeat:no-repeat; background-position:center; position:relative; z-index:2; pointer-events:none; display:block; }
 .coord-rank { position:absolute; top:2px; left:3px; font-size:9px; font-weight:bold; font-family:monospace; z-index:3; pointer-events:none; }
 .coord-file { position:absolute; bottom:2px; right:3px; font-size:9px; font-weight:bold; font-family:monospace; z-index:3; pointer-events:none; }
 .controls { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px; }
@@ -282,7 +280,14 @@ function render(){
       const cc=isLight?'#5a8040':'#c8d8a0';
       if(c===(flipped?7:0)){const s=document.createElement('span');s.className='coord-rank';s.style.color=cc;s.textContent=8-r;div.appendChild(s);}
       if(r===(flipped?0:7)){const s=document.createElement('span');s.className='coord-file';s.style.color=cc;s.textContent=String.fromCharCode(97+c);div.appendChild(s);}
-      if(piece){const sp=document.createElement('span');sp.className='piece '+(isW(piece)?'piece-w':'piece-b');sp.textContent=UNICODE[piece];div.appendChild(sp);}
+      if(piece){
+        const sp=document.createElement('div');
+        sp.className='piece';
+        const color=isW(piece)?'w':'b';
+        const type=piece.toUpperCase();
+        sp.style.backgroundImage=`url(https://www.chess.com/chess-themes/pieces/neo/150/${color}${type}.png)`;
+        div.appendChild(sp);
+      }
       div.addEventListener('click',()=>clickSq(r,c,sq));
       row.appendChild(div);
     }
