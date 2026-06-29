@@ -146,65 +146,46 @@ let history=[GAME_FEN],moveHistory=[],selected=null,legalMoves=[];
 let flipped=false,showHint=true,lastMove=null,promoData=null;
 let bestFrom=null,bestTo=null,sf=null,sfReady=false,sfBusy=false,sfCallback=null;
 
-// ── Stockfish direct (geen Worker) ───────────────────────
-
-
+// ── Analyse via Lichess API (stil, geen popup) ────────────
 function initStockfish(){
   const el=document.getElementById('sf-status');
-  try {
-    // Maak een inline worker via blob
-    const workerCode = `
-      importScripts('${location.origin}/stockfish.js');
-      var engine = Stockfish();
-      engine.addMessageListener(function(msg){ postMessage(msg); });
-      onmessage = function(e){ engine.postMessage(e.data); };
-    `;
-    const blob = new Blob([workerCode], {type:'application/javascript'});
-    const url = URL.createObjectURL(blob);
-    sf = new Worker(url);
-
-    sf.onmessage=function(e){
-      const line=typeof e.data==='string'?e.data:e.data?.toString();
-      if(!line)return;
-      if(line.startsWith('bestmove')){
-        const mv=line.split(' ')[1];
-        if(sfCallback){sfCallback(mv&&mv!=='(none)'?mv:null);sfCallback=null;}
-        sfBusy=false;return;
-      }
-      if(line.startsWith('info')&&line.includes('score')&&line.includes('pv')){
-        const cpM=line.match(/score cp (-?\d+)/),matM=line.match(/score mate (-?\d+)/),pvM=line.match(/pv\s+(\S+)/);
-        if(cpM||matM){
-          const cp=cpM?parseInt(cpM[1]):null,mate=matM?parseInt(matM[1]):null;
-          const turn=getFen().split(' ')[1];
-          updateEval(cp!=null?(turn==='b'?-cp/100:cp/100):null,mate!=null?(turn==='b'?-mate:mate):null);
-        }
-        if(pvM&&showHint){const mv=pvM[1];if(mv&&mv.length>=4){bestFrom=mv.slice(0,2);bestTo=mv.slice(2,4);render();}}
-      }
-      if(line==='uciok')sf.postMessage('isready');
-      if(line==='readyok'){
-        sfReady=true;
-        el.className='sf-status';el.textContent='✓ Stockfish 18 klaar';el.classList.remove('pulse');
-        setStatus('Tik een stuk aan om te beginnen');
-      }
-    };
-    sf.onerror=function(err){
-      el.className='sf-status error';
-      el.textContent='✗ Fout: '+( err.message||'onbekend');
-      sfReady=false;
-    };
-    sf.postMessage('uci');
-  }catch(e){
-    el.className='sf-status error';
-    el.textContent='✗ '+e.message;
-  }
+  el.className='sf-status';
+  el.textContent='✓ Klaar — Stockfish via Lichess';
+  el.classList.remove('pulse');
+  sfReady=true;
+  setStatus('Tik een stuk aan om te beginnen');
 }
 
 function askStockfish(fen,depth,cb){
-  if(!sfReady||sfBusy){if(cb)cb(null);return;}
-  sfBusy=true;sfCallback=cb;
-  sf.postMessage('position fen '+fen);
-  sf.postMessage('go depth '+depth);
+  fetch('https://lichess.org/api/cloud-eval?fen='+encodeURIComponent(fen)+'&multiPv=1')
+    .then(r=>r.ok?r.json():null)
+    .then(data=>{
+      if(data&&data.pvs&&data.pvs[0]){
+        const pv=data.pvs[0];
+        const mv=(pv.moves||'').split(' ')[0];
+        const turn=fen.split(' ')[1];
+        const ev=pv.cp!=null?(turn==='b'?-pv.cp/100:pv.cp/100):null;
+        const mate=pv.mate!=null?(turn==='b'?-pv.mate:pv.mate):null;
+        updateEval(ev,mate);
+        if(mv&&mv.length>=4&&showHint){bestFrom=mv.slice(0,2);bestTo=mv.slice(2,4);render();}
+        cb(mv||null);
+      } else {
+        fetch('https://stockfish.online/api/s/v2.php?fen='+encodeURIComponent(fen)+'&depth=15')
+          .then(r=>r.json())
+          .then(sd=>{
+            if(sd.success){
+              const mv=(sd.bestmove||'').replace('bestmove ','').split(' ')[0];
+              const turn=fen.split(' ')[1];
+              const ev=sd.evaluation!=null?(turn==='b'?-parseFloat(sd.evaluation):parseFloat(sd.evaluation)):null;
+              updateEval(ev,sd.mate||null);
+              if(mv&&mv.length>=4&&showHint){bestFrom=mv.slice(0,2);bestTo=mv.slice(2,4);render();}
+              cb(mv||null);
+            } else cb(null);
+          }).catch(()=>cb(null));
+      }
+    }).catch(()=>cb(null));
 }
+
 
 // ── FEN ───────────────────────────────────────────────────
 function parseFen(fen){
