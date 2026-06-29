@@ -283,9 +283,9 @@ function render(){
       if(piece){
         const sp=document.createElement('div');
         sp.className='piece';
-        const color=isW(piece)?'w':'b';
-        const type=piece.toUpperCase();
-        sp.style.backgroundImage=`url(https://www.chess.com/chess-themes/pieces/neo/150/${color}${type}.png)`;
+        const c=isW(piece)?'w':'b';
+        const t=piece.toUpperCase();
+        sp.style.backgroundImage=`url(https://lichess1.org/assets/piece/cburnett/${c}${t}.svg)`;
         div.appendChild(sp);
       }
       div.addEventListener('click',()=>clickSq(r,c,sq));
