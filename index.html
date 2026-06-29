@@ -146,14 +146,26 @@ let history=[GAME_FEN],moveHistory=[],selected=null,legalMoves=[];
 let flipped=false,showHint=true,lastMove=null,promoData=null;
 let bestFrom=null,bestTo=null,sf=null,sfReady=false,sfBusy=false,sfCallback=null;
 
-// ── Stockfish Worker ──────────────────────────────────────
+// ── Stockfish direct (geen Worker) ───────────────────────
+let sfQueue=[], sfRunning=false;
+
 function initStockfish(){
   const el=document.getElementById('sf-status');
   try {
-    sf=new Worker('stockfish.js');
+    // Maak een inline worker via blob
+    const workerCode = `
+      importScripts('${location.origin}/stockfish.js');
+      var engine = Stockfish();
+      engine.addMessageListener(function(msg){ postMessage(msg); });
+      onmessage = function(e){ engine.postMessage(e.data); };
+    `;
+    const blob = new Blob([workerCode], {type:'application/javascript'});
+    const url = URL.createObjectURL(blob);
+    sf = new Worker(url);
+
     sf.onmessage=function(e){
-      const line=e.data;
-      if(typeof line!=='string')return;
+      const line=typeof e.data==='string'?e.data:e.data?.toString();
+      if(!line)return;
       if(line.startsWith('bestmove')){
         const mv=line.split(' ')[1];
         if(sfCallback){sfCallback(mv&&mv!=='(none)'?mv:null);sfCallback=null;}
@@ -175,11 +187,16 @@ function initStockfish(){
         setStatus('Tik een stuk aan om te beginnen');
       }
     };
-    sf.onerror=()=>{el.className='sf-status error';el.textContent='✗ Stockfish kon niet starten';sfReady=false;};
+    sf.onerror=function(err){
+      el.className='sf-status error';
+      el.textContent='✗ Fout: '+( err.message||'onbekend');
+      sfReady=false;
+    };
     sf.postMessage('uci');
-    sf.postMessage('setoption name Threads value 1');
-    sf.postMessage('setoption name Hash value 32');
-  }catch(e){el.className='sf-status error';el.textContent='✗ '+e.message;}
+  }catch(e){
+    el.className='sf-status error';
+    el.textContent='✗ '+e.message;
+  }
 }
 
 function askStockfish(fen,depth,cb){
