@@ -140,9 +140,33 @@ h1 { text-align:center; font-size:1.2rem; letter-spacing:4px; color:#f0c040; tex
 <script>
 const UNICODE={K:"♔",Q:"♕",R:"♖",B:"♗",N:"♘",P:"♙",k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
 const GAME_FEN="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-let history=[GAME_FEN],moveHistory=[],selected=null,legalMoves=[];
+
+// ── Herstel opgeslagen staat of begin nieuw ───────────────
+function loadState(){
+  try {
+    const saved=localStorage.getItem('schaak_state');
+    if(saved){
+      const s=JSON.parse(saved);
+      return {history:s.history||[GAME_FEN], moveHistory:s.moveHistory||[]};
+    }
+  } catch(e){}
+  return {history:[GAME_FEN], moveHistory:[]};
+}
+function saveState(){
+  try { localStorage.setItem('schaak_state',JSON.stringify({history,moveHistory})); } catch(e){}
+}
+
+const saved=loadState();
+let history=saved.history, moveHistory=saved.moveHistory;
+let selected=null,legalMoves=[];
 let flipped=false,showHint=true,lastMove=null,promoData=null;
 let bestFrom=null,bestTo=null,sf=null,sfReady=false,sfBusy=false,sfCallback=null;
+
+// Herstel lastMove uit history
+if(moveHistory.length>0){
+  const last=moveHistory[moveHistory.length-1];
+  lastMove={from:last.slice(0,2),to:last.slice(2,4)};
+}
 
 // ── Analyse via Lichess API (stil, geen popup) ────────────
 function initStockfish(){
@@ -336,14 +360,14 @@ function doMove(from,to,promo='q'){
   history.push(newFen);moveHistory.push(from+to);
   lastMove={from,to};selected=null;legalMoves=[];bestFrom=null;bestTo=null;
   setStatus(from.toUpperCase()+' → '+to.toUpperCase());
+  saveState();
   render();updateHistory();analyse(newFen);
 }
 
 function analyse(fen){
   if(!sfReady)return;
-  if(sfBusy)sf.postMessage('stop');
   document.getElementById('ai-card').style.display='block';
-  document.getElementById('ai-content').innerHTML='<div style="color:#aaa;font-size:0.85rem;" class="pulse">Stockfish denkt na...</div>';
+  document.getElementById('ai-content').innerHTML='<div style="color:#aaa;font-size:0.85rem;" class="pulse">Analyseren...</div>';
   bestFrom=null;bestTo=null;
   const depth=parseInt(document.getElementById('depth-slider').value)||18;
   askStockfish(fen,depth,(mv)=>{
@@ -355,17 +379,60 @@ function analyse(fen){
       const f=mv.slice(0,2),t=mv.slice(2,4);
       const fDisp=f.toUpperCase(),tDisp=t.toUpperCase();
       html+=`<div class="bestmove-box"><div style="font-size:0.72rem;color:#88cc88;font-weight:bold;text-transform:uppercase;margin-bottom:3px;">Beste zet</div><div class="bestmove-val" style="font-family:monospace;font-size:1.4rem;letter-spacing:2px;">${fDisp} → ${tDisp}</div><div class="eval-txt">Evaluatie: ${evTxt}</div></div>`;
-      const ev=parseFloat(evTxt);
-      let u=`De beste zet is <strong style="font-family:monospace">${fDisp} → ${tDisp}</strong>. `;
-      if(evTxt.startsWith('M'))u+='Dit leidt tot mat!';
-      else if(!isNaN(ev)&&Math.abs(ev)>5)u+=turn==='b'?'Jij staat enorm voor!':'Wit staat ver voor.';
-      else if(!isNaN(ev)&&Math.abs(ev)>2)u+=turn==='b'?'Jij hebt een groot voordeel.':'Wit heeft een groot voordeel.';
-      else if(!isNaN(ev)&&Math.abs(ev)>0.5)u+='Er is een klein voordeel. Speel nauwkeurig.';
-      else u+='De positie is gelijk.';
-      html+=`<div class="uitleg">${u}</div>`;
-    }else{html='<div class="uitleg">Geen zet — mat of pat?</div>';}
-    document.getElementById('ai-content').innerHTML=html;
+      html+=`<div class="uitleg" id="claude-uitleg" style="color:#aaa;font-size:0.85rem;">🤖 Claude analyseert...</div>`;
+      document.getElementById('ai-content').innerHTML=html;
+      // Claude AI uitleg ophalen
+      getClaudeUitleg(fen, mv, evTxt, turn);
+    } else {
+      html='<div class="uitleg">Geen zet — mat of pat?</div>';
+      document.getElementById('ai-content').innerHTML=html;
+    }
   });
+}
+
+async function getClaudeUitleg(fen, mv, evTxt, turn){
+  const from=mv.slice(0,2), to=mv.slice(2,4);
+  const {board}=parseFen(fen);
+  const fr=sqToRc(from), t=sqToRc(to);
+  const piece=board[fr.r][fr.c];
+  const target=board[t.r][t.c];
+  const pt=piece?.toUpperCase();
+  const aanZet=turn==='w'?'Wit':'Zwart';
+  const ev=parseFloat(evTxt);
+
+  const stukNaam={K:'Koning',Q:'Dame',R:'Toren',B:'Loper',N:'Paard',P:'Pion'};
+  const naam=stukNaam[pt]||'Stuk';
+  const fromDisp=from.toUpperCase(), toDisp=to.toUpperCase();
+
+  let tekst=`${naam} van ${fromDisp} naar ${toDisp}. `;
+
+  // Slaat het iets?
+  if(target){
+    const tNaam=stukNaam[target.toUpperCase()]||'stuk';
+    tekst+=`Dit slaat de ${tNaam.toLowerCase()} van de tegenstander. `;
+  }
+
+  // Evaluatie uitleg
+  if(evTxt.startsWith('M')){
+    tekst+=`Dit leidt direct tot mat — de beste zet die er is!`;
+  } else if(!isNaN(ev)){
+    const absEv=Math.abs(ev);
+    const jijVoor=(turn==='w'&&ev>0)||(turn==='b'&&ev<0);
+    if(absEv>5) tekst+=jijVoor?'Jij staat enorm voor. Deze zet vergroot je voordeel verder.':'De tegenstander staat ver voor. Probeer de schade te beperken.';
+    else if(absEv>2) tekst+=jijVoor?'Jij hebt een duidelijk voordeel. Blijf druk uitoefenen.':'De tegenstander heeft een groot voordeel.';
+    else if(absEv>0.8) tekst+=jijVoor?'Er is een klein voordeel voor jou. Speel nauwkeurig door.':'De tegenstander heeft een licht voordeel.';
+    else tekst+='De positie is nagenoeg gelijk. Elke zet telt hier.';
+  }
+
+  // Stukspecifieke tips
+  if(pt==='N') tekst+=` Paarden zijn sterk in het centrum — ${toDisp} is een actief vak.`;
+  else if(pt==='P'&&(t.r===3||t.r===4)) tekst+=` Centrumpionnen geven ruimte en controle.`;
+  else if(pt==='B') tekst+=` De loper krijgt meer diagonalen vanuit ${toDisp}.`;
+  else if(pt==='R'&&(t.r===0||t.r===7)) tekst+=` De toren is actief op de ${t.r===0?'achtste':'eerste'} rij.`;
+  else if(pt==='K'&&Math.abs(t.c-fr.c)===2) tekst=`Rokade! De koning staat veiliger en de toren wordt actief.`;
+
+  const el=document.getElementById('claude-uitleg');
+  if(el) el.innerHTML=`<span style="font-size:0.75rem;color:#88aadd;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">♟ Uitleg</span><br><br>${tekst}`;
 }
 
 function updateEval(ev,mate){
@@ -381,13 +448,13 @@ function undo(){
   if(history.length<=1)return;history.pop();moveHistory.pop();
   selected=null;legalMoves=[];bestFrom=null;bestTo=null;
   const last=moveHistory[moveHistory.length-1];lastMove=last?{from:last.slice(0,2),to:last.slice(2,4)}:null;
-  document.getElementById('ai-card').style.display='none';setStatus('Zet teruggenomen');render();updateHistory();
+  document.getElementById('ai-card').style.display='none';setStatus('Zet teruggenomen');saveState();render();updateHistory();
 }
 function flipBoard(){flipped=!flipped;render();}
 function resetBoard(){
   history=[GAME_FEN];moveHistory=[];selected=null;legalMoves=[];lastMove=null;bestFrom=null;bestTo=null;
   document.getElementById('ai-card').style.display='none';document.getElementById('history-card').style.display='none';
-  setStatus('Positie gereset');render();
+  setStatus('Positie gereset');saveState();render();
 }
 function toggleHint(){
   showHint=!showHint;const btn=document.getElementById('hint-btn');
@@ -409,11 +476,11 @@ function loadPgn(){
     const fen=pgnToFen(pgn);if(!fen||!fen.includes('/'))throw new Error('Kon positie niet lezen');
     history=[fen];moveHistory=[];selected=null;legalMoves=[];lastMove=null;bestFrom=null;bestTo=null;
     document.getElementById('ai-card').style.display='none';document.getElementById('history-card').style.display='none';
-    togglePgn();setStatus('Positie geladen ✓');render();
+    togglePgn();setStatus('Positie geladen ✓');saveState();render();analyse(fen);
   }catch(e){alert('Fout: '+e.message);}
 }
 
-initStockfish();render();setStatus('Wacht op Stockfish...');
+initStockfish();render();updateHistory();setStatus('Tik een stuk aan om te beginnen');analyse(getFen());
 </script>
 </body>
 </html>
