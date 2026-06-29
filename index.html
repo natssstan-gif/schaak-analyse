@@ -147,7 +147,7 @@ let flipped=false,showHint=true,lastMove=null,promoData=null;
 let bestFrom=null,bestTo=null,sf=null,sfReady=false,sfBusy=false,sfCallback=null;
 
 // ── Stockfish direct (geen Worker) ───────────────────────
-let sfQueue=[], sfRunning=false;
+
 
 function initStockfish(){
   const el=document.getElementById('sf-status');
